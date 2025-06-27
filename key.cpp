@@ -334,3 +334,31 @@ bool validate_key_name (const char* key_name, std::string* reason)
 	return true;
 }
 
+bool load_keyfile_with_mac(std::istream& in, Key_file& key_file, std::string* mac_addr) {
+    std::string first_line;
+    std::streampos pos = in.tellg();
+    std::getline(in, first_line);
+    if (first_line.rfind("MAC:", 0) == 0) {
+        if (mac_addr) *mac_addr = first_line.substr(4);
+    } else {
+        // 没有mac行，回退流位置
+        in.clear();
+        in.seekg(pos);
+        if (mac_addr) mac_addr->clear();
+    }
+    try {
+        key_file.load(in);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool store_keyfile_with_mac(std::ostream& out, const Key_file& key_file, const std::string& mac_addr) {
+    if (!mac_addr.empty()) {
+        out << "MAC:" << mac_addr << "\n";
+    }
+    key_file.store(out);
+    return true;
+}
+

@@ -45,6 +45,11 @@
 #include <cstring>
 #include <cstddef>
 #include <algorithm>
+#include <ifaddrs.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <netpacket/packet.h>
+#include <net/ethernet.h>
 
 std::string System_error::message () const
 {
@@ -213,4 +218,24 @@ std::vector<std::string> get_directory_contents (const char* path)
 
 	std::sort(contents.begin(), contents.end());
 	return contents;
+}
+
+std::vector<std::string> get_local_mac_addresses() {
+    std::vector<std::string> macs;
+    struct ifaddrs *ifaddr, *ifa;
+    if (getifaddrs(&ifaddr) == -1) return macs;
+    for (ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_PACKET) {
+            struct sockaddr_ll *s = (struct sockaddr_ll*)ifa->ifa_addr;
+            if (s->sll_halen == 6) {
+                char mac[32];
+                sprintf(mac, "%02X-%02X-%02X-%02X-%02X-%02X",
+                        s->sll_addr[0], s->sll_addr[1], s->sll_addr[2],
+                        s->sll_addr[3], s->sll_addr[4], s->sll_addr[5]);
+                macs.push_back(mac);
+            }
+        }
+    }
+    freeifaddrs(ifaddr);
+    return macs;
 }

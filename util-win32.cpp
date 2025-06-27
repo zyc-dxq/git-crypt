@@ -34,6 +34,8 @@
 #include <windows.h>
 #include <vector>
 #include <cstring>
+#include <iphlpapi.h>
+#pragma comment(lib, "iphlpapi.lib")
 
 std::string System_error::message () const
 {
@@ -209,4 +211,22 @@ std::vector<std::string> get_directory_contents (const char* path)
 	}
 	FindClose(h);
 	return filenames;
+}
+
+std::vector<std::string> get_local_mac_addresses() {
+    std::vector<std::string> macs;
+    IP_ADAPTER_INFO AdapterInfo[16];
+    DWORD buflen = sizeof(AdapterInfo);
+    DWORD status = GetAdaptersInfo(AdapterInfo, &buflen);
+    if (status != ERROR_SUCCESS) return macs;
+    PIP_ADAPTER_INFO pAdapterInfo = AdapterInfo;
+    while (pAdapterInfo) {
+        char mac[32] = {0};
+        sprintf(mac, "%02X-%02X-%02X-%02X-%02X-%02X",
+            pAdapterInfo->Address[0], pAdapterInfo->Address[1], pAdapterInfo->Address[2],
+            pAdapterInfo->Address[3], pAdapterInfo->Address[4], pAdapterInfo->Address[5]);
+        macs.push_back(mac);
+        pAdapterInfo = pAdapterInfo->Next;
+    }
+    return macs;
 }

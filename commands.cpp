@@ -56,6 +56,13 @@ enum {
 	// enough to avoid operating system limits on argument length
 	GIT_CHECKOUT_BATCH_SIZE = 100
 };
+static std::string trim(const std::string& s) {
+    auto start = s.begin();
+    while (start != s.end() && std::isspace((unsigned char)*start)) start++;
+    auto end = s.end();
+    do { end--; } while (std::distance(start, end) > 0 && std::isspace((unsigned char)*end));
+    return std::string(start, end + 1);
+}
 
 static std::string attribute_name (const char* key_name)
 {
@@ -1032,17 +1039,37 @@ int unlock (int argc, const char** argv)
 	std::vector<Key_file>	key_files;
 	if (argc > 0) {
 		// Read from the symmetric key file(s)
-
 		for (int argi = 0; argi < argc; ++argi) {
 			const char*	symmetric_key_file = argv[argi];
 			Key_file	key_file;
-
+			std::string file_mac;
 			try {
 				if (std::strcmp(symmetric_key_file, "-") == 0) {
-					key_file.load(std::cin);
+					if (!load_keyfile_with_mac(std::cin, key_file, &file_mac)) {
+						std::clog << "Error: unable to read key file" << std::endl;
+						return 1;
+					}
 				} else {
-					if (!key_file.load_from_file(symmetric_key_file)) {
+					std::ifstream in(symmetric_key_file, std::fstream::binary);
+					if (!in) {
 						std::clog << "Error: " << symmetric_key_file << ": unable to read key file" << std::endl;
+						return 1;
+					}
+					if (!load_keyfile_with_mac(in, key_file, &file_mac)) {
+						std::clog << "Error: " << symmetric_key_file << ": not a valid git-crypt key file" << std::endl;
+						return 1;
+					}
+				}
+				// 校验mac
+				if (!file_mac.empty()) {
+					auto local_macs = get_local_mac_addresses();
+					bool match = false;
+					for (const auto& m : local_macs) {
+						if (_stricmp(trim(m).c_str(), trim(file_mac).c_str()) == 0) { match = true; break; }
+					}
+					if (!match) {
+						std::clog << "Error: mac valid fail" << std::endl;
+						std::clog << std::endl;
 						return 1;
 					}
 				}
@@ -1056,7 +1083,6 @@ int unlock (int argc, const char** argv)
 				std::clog << "by running 'git-crypt migrate-key /path/to/old_key /path/to/migrated_key'." << std::endl;
 				return 1;
 			}
-
 			key_files.push_back(key_file);
 		}
 	} else {
@@ -1261,7 +1287,7 @@ int add_gpg_user (int argc, const char** argv)
 
 	encrypt_repo_key(key_name, *key, collab_keys, get_repo_keys_path(state_path), &new_files);
 
-	// Add a .gitatributes file to the repo state directory to prevent files in it from being encrypted.
+	// Add a .gitattributes file to the repo state directory to prevent files in it from being encrypted.
 	const std::string		state_gitattributes_path(state_path + "/.gitattributes");
 	if (access(state_gitattributes_path.c_str(), F_OK) != 0) {
 		std::ofstream		state_gitattributes_file(state_gitattributes_path.c_str());
@@ -1390,15 +1416,28 @@ int export_key (int argc, const char** argv)
 
 	const char*		out_file_name = argv[argi];
 
+	// 新增：输入目标开发者mac地址
+	std::string mac;
+	std::cout << "Please enter the mac address of the developer (in the format of XX-XX-XX-XX-XX):\n";
+	std::cout.flush();
+	std::getline(std::cin, mac);
+
 	if (std::strcmp(out_file_name, "-") == 0) {
-		key_file.store(std::cout);
+		store_keyfile_with_mac(std::cout, key_file, mac);
 	} else {
-		if (!key_file.store_to_file(out_file_name)) {
+		create_protected_file(out_file_name);
+		std::ofstream out(out_file_name, std::fstream::binary);
+		if (!out) {
+			std::clog << "Error: " << out_file_name << ": unable to write key file" << std::endl;
+			return 1;
+		}
+		store_keyfile_with_mac(out, key_file, mac);
+		out.close();
+		if (!out) {
 			std::clog << "Error: " << out_file_name << ": unable to write key file" << std::endl;
 			return 1;
 		}
 	}
-
 	return 0;
 }
 
@@ -1428,10 +1467,24 @@ int keygen (int argc, const char** argv)
 	Key_file		key_file;
 	key_file.generate();
 
+	// 新增：输入mac地址
+	std::string mac;
+	std::cout << "Please enter the mac address of the developer (in the format of XX-XX-XX-XX-XX):\n";
+	std::cout.flush();
+	std::getline(std::cin, mac);
+
 	if (std::strcmp(key_file_name, "-") == 0) {
-		key_file.store(std::cout);
+		store_keyfile_with_mac(std::cout, key_file, mac);
 	} else {
-		if (!key_file.store_to_file(key_file_name)) {
+		create_protected_file(key_file_name);
+		std::ofstream out(key_file_name, std::fstream::binary);
+		if (!out) {
+			std::clog << "Error: " << key_file_name << ": unable to write key file" << std::endl;
+			return 1;
+		}
+		store_keyfile_with_mac(out, key_file, mac);
+		out.close();
+		if (!out) {
 			std::clog << "Error: " << key_file_name << ": unable to write key file" << std::endl;
 			return 1;
 		}
@@ -1705,4 +1758,6 @@ int status (int argc, const char** argv)
 
 	return exit_status;
 }
+
+
 

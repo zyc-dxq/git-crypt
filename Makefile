@@ -27,6 +27,11 @@ OBJFILES = \
 OBJFILES += crypto-openssl-10.o crypto-openssl-11.o
 LDFLAGS += -lcrypto
 
+# Windows下链接iphlpapi库
+ifeq ($(OS),Windows_NT)
+LDFLAGS += -liphlpapi
+endif
+
 XSLTPROC ?= xsltproc
 DOCBOOK_FLAGS += --param man.output.in.separate.dir 1 \
 		 --stringparam man.output.base.dir man/ \

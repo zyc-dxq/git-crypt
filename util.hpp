@@ -78,6 +78,7 @@ void		init_std_streams ();
 void		create_protected_file (const char* path); // create empty file accessible only by current user
 int		util_rename (const char*, const char*);
 std::vector<std::string> get_directory_contents (const char* path);
+std::vector<std::string> get_local_mac_addresses();
 
 #endif
 

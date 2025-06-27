@@ -36,6 +36,7 @@
 #include <stdint.h>
 #include <iosfwd>
 #include <string>
+#include <vector>
 
 enum {
 	HMAC_KEY_LEN = 64,
@@ -112,5 +113,8 @@ enum {
 };
 
 bool validate_key_name (const char* key_name, std::string* reason =0);
+
+bool load_keyfile_with_mac(std::istream& in, Key_file& key_file, std::string* mac_addr = nullptr);
+bool store_keyfile_with_mac(std::ostream& out, const Key_file& key_file, const std::string& mac_addr);
 
 #endif
